@@ -26,21 +26,29 @@ const stepText = (name, args, result) => {
 };
 
 async function callGemini(contents) {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM }] },
-        contents,
-        tools: geminiTools,
-        generationConfig: { thinkingConfig: { thinkingLevel: 'low' } }, // 생각 시간을 줄여 빠르게
-      }),
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: SYSTEM }] },
+    contents,
+    tools: geminiTools,
+    generationConfig: { thinkingConfig: { thinkingLevel: 'low' } }, // 생각 시간을 줄여 빠르게
+  });
+  // 503(사용량 몰림) · 429(한도)는 잠깐 뒤 다시 시도한다 (최대 3번)
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+        body,
+      }
+    );
+    if (res.ok) return res.json();
+    if ((res.status === 503 || res.status === 429) && attempt < 3) {
+      await new Promise((r) => setTimeout(r, attempt * 1000));
+      continue;
     }
-  );
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  return res.json();
+    throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
 }
 
 async function runGemini(question) {
@@ -99,8 +107,14 @@ module.exports = async (req, res) => {
   const question = (req.method === 'POST' ? req.body?.question : req.query.question) || '';
   if (!question.trim()) return res.status(400).json({ error: '질문을 입력해 주세요' });
   try {
-    const out = process.env.GEMINI_API_KEY ? await runGemini(question) : await runPractice(question);
-    res.status(200).json(out);
+    if (!process.env.GEMINI_API_KEY) return res.status(200).json(await runPractice(question));
+    try {
+      res.status(200).json(await runGemini(question));
+    } catch (e) {
+      // Gemini 가 계속 실패하면 오류 대신 연습 모드(규칙)로 답한다
+      const out = await runPractice(question);
+      res.status(200).json({ ...out, note: `Gemini 가 지금 응답하지 못해 연습 모드로 답했어요 (${String(e.message).slice(0, 80)})` });
+    }
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });
   }
