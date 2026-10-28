@@ -2,7 +2,7 @@
 // 열쇠는 환경변수 GEMINI_API_KEY 에서만 읽는다. 없으면 연습 모드(규칙)로 같은 모양의 답을 만든다.
 const { runTool, geminiTools } = require('./tools');
 
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-3.8-flash';
 const MAX_TURNS = 5;
 
 const SYSTEM = [
