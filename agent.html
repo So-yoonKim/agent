@@ -37,7 +37,7 @@
             const data = await res.json()
             if (data.error) { answer.textContent = "오류: " + data.error; return }
 
-            answer.textContent = (data.mode === "practice" ? "[연습 모드 — Gemini 키 없음]\n" : "") + data.answer
+            answer.textContent = (data.mode === "practice" ? "[" + (data.note || "연습 모드 — Gemini 키 없음") + "]\n" : "") + data.answer
             for (const s of data.steps) {
                 const li = document.createElement("li")
                 li.className = s.kind
