@@ -35,6 +35,7 @@ async function callGemini(contents) {
         systemInstruction: { parts: [{ text: SYSTEM }] },
         contents,
         tools: geminiTools,
+        generationConfig: { thinkingConfig: { thinkingLevel: 'low' } }, // 생각 시간을 줄여 빠르게
       }),
     }
   );
